@@ -1,2 +1,23 @@
 .pio
 .vscode
+*.log
+*.csv
+
+# PlatformIO
+.pioenvs
+.piolibdeps
+
+# IDE
+.idea
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+src/secrets.h
+
+# But KEEP firmware folder for OTA
+!firmware/
