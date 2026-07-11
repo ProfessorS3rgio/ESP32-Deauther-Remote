@@ -1,82 +1,49 @@
-# ESP32-Deauther
+# 👻 Vendo Ghost - ESP32 MQTT Deauther
 
-ESP32-based WiFi deauthentication tool with web interface. Capable of disconnecting
-  2.4GHz WiFi networks using IEEE 802.11 deauth frames. Includes network scanning,
-  attack statistics, and modular architecture. Educational/security research use only.
+ESP32-based WiFi deauthentication tool controlled remotely via MQTT. Target and disrupt PisoWiFi and other 2.4GHz networks using IEEE 802.11 deauth frames. Fully remote operation with MQTT command interface and OTA update support.
 
-## DISCLAIMER
+## ⚠️ DISCLAIMER
 
 **This project is made for learning and educational purposes only. I do not accept any responsibility for any trouble, damage, or illegal activities that may result from the use of this software. Users are solely responsible for ensuring their use complies with local laws and regulations.**
 
-## Features
+## ✨ Features
 
- ### Pros
+- 🔴 **Remote MQTT Control** - No physical access needed
+- 📡 **Network Scanning** - Auto-detects PisoWiFi targets
+- ⚔️ **Multi-Target Attack** - Deauth multiple networks simultaneously
+- 📱 **Flutter App** - Android control interface
+- 🔄 **OTA Updates** - Update firmware remotely via GitHub Releases
+- 📊 **Real-time Status** - Monitor via MQTT topics
+- 🔁 **Auto-Recovery** - Periodic MQTT check-ins during attack
+- 🎯 **Smart Targeting** - Keyword-based PisoWiFi detection
 
-  - 2.4GHz WiFi Support
-  - Modern Web Interface
-  - Real-time Network Scanning
-  - Multiple Attack Modes
-  - Live Statistics
-  - Low Cost Hardware
-  - Portable
-  - Customizable Reason Codes
-
- ### Cons
-
-  - No 5GHz Support
-  - Limited Range
-  - No WPA3 Deauth
-  - Single Threaded
+## 🏗️ Architecture
 
 
-<p align="center">
-  <img src="images/main-page.jpg" alt="Main Page" width="600"/>
-</p>
+┌─────────────┐ MQTT ┌──────────────┐ WiFi Deauth ┌─────────────┐
+│ Flutter App │◄──────────►│ ESP32 Vendo │◄────────────────►│ Target WiFi │
+│ (Android) │ HiveMQ │ Ghost Device │ 802.11 Frames │ Networks │
+└─────────────┘ Cloud └──────────────┘ └─────────────┘
 
-  
-## Requirements
 
-- **ESP32 Development Board** (ESP32-WROOM-32, ESP32 DevKit v1, etc.)
-- **VSCode** (With PlatformIO extension)
-- **CP2102 Driver** (Linux already has this driver in its kernel)
-## Installation
+## 📋 Requirements
 
-### Using PlatformIO (Recommended)
+### Hardware
+- **ESP32 Development Board** (ESP32-WROOM-32, DevKit v1, etc.)
+- USB Cable for programming
 
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/PicoShot/ESP32-Deauther.git
-   cd ESP32-Deauther
-   ```
+### Software
+- **VSCode** with PlatformIO extension
+- **Flutter** (for Android app - optional)
+- **MQTT Client** (HiveMQ Web Client, MQTT Explorer, or Flutter app)
 
-2. **Open in VSCode (make sure you have been installed PlatformIO extension)**
+### Services
+- **HiveMQ Cloud** (Free MQTT broker)
+- **GitHub** (For OTA firmware hosting)
 
-3. **Upload to ESP32**
+## 🚀 Installation
 
-##  Usage
-
-1. **Power on the ESP32** - It will create a WiFi Access Point
-2. **Connect to the AP:**
-   - **SSID:** `ESP32-Deauther` (default)
-   - **Password:** `1234+abc` (default)
-3. **Open web browser** and navigate to: `http://192.168.4.1`
-4. **Scan for networks** using the "Scan Networks" button
-5. **Select target network** from the list
-6. **Choose deauth reason code**
-7. **Launch attack** or use "Deauth All" for broader impact
-
-## Configuration
-
-Edit `include/definitions.h` to customize:
-
-```cpp
-#define AP_SSID "ESP32-Deauther"    // Access Point name
-#define AP_PASS "1234+abc"          // Access Point password
-#define CHANNEL_MAX 13              // Maximum WiFi channel
-// #define LED 2                    // Uncomment to enable LED (if you have one)
-// #define SERIAL_DEBUG             // Uncomment for serial output
-```
-
----
-
-**Remember: With great power comes great responsibility. Use this tool ethically and legally.**
+### 1. Clone the repository
+```bash
+git clone https://github.com/ProfessorS3rgio/ESP32-Deauther-Remote.git
+cd ESP32-Deauther-Remote

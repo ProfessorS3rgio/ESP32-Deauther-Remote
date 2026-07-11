@@ -16,8 +16,5 @@
 .DS_Store
 Thumbs.db
 
-# Secrets
+# Secrets - NEVER COMMIT
 src/secrets.h
-
-# But KEEP firmware folder for OTA
-!firmware/

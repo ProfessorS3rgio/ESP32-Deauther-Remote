@@ -1,6 +1,9 @@
 #include "mqtt_handler.h"
 #include "attack_manager.h"
 #include "deauth.h"
+#include <HTTPClient.h>   // ✅ ADD
+#include <Update.h>       // ✅ ADD
+
 
 void MQTTHandler::begin() {
     Serial.println("📡 MQTT Handler initialized");
@@ -30,12 +33,10 @@ void MQTTHandler::callback(char* topic, byte* payload, unsigned int length,
         if (isRetained) mqtt.publish(TOPIC_CMD_RETAINED, "", true);
     }
     else if (msg == "status") {
-        // ✅ FIX: Actually handle status request
         Serial.println("📊 Status requested - sending...");
         publishStatus(mqtt, attackModeActive ? "attacking" : "standby");
     }
     else if (msg == "scan") {
-        // ✅ FIX: Actually handle scan request
         Serial.println("🔍 Scan requested - scanning...");
         std::vector<ScannedNetwork> scanResults;
         AttackManager::scanAndReport(scanResults);
@@ -53,6 +54,12 @@ void MQTTHandler::callback(char* topic, byte* payload, unsigned int length,
     else if (msg == "restart") {
         handleRestart(mqtt);
     }
+    // ✅ ADD THIS BLOCK:
+    else if (msg.startsWith("ota_update:")) {
+        String url = msg.substring(11);
+        handleOTAUpdate(mqtt, url);
+    }
+    // ✅ END ADD
     else {
         Serial.println("❓ Unknown command: " + msg);
     }
@@ -227,4 +234,66 @@ void MQTTHandler::publishScanResults(PubSubClient& mqtt,
     serializeJson(doc, json);
     mqtt.publish(TOPIC_SCAN, json.c_str());
     Serial.println("📤 Scan results sent");
+}
+
+
+void MQTTHandler::handleOTAUpdate(PubSubClient& mqtt, const String& url) {
+    Serial.println("\n╔══════════════════════════════════════╗");
+    Serial.println("║        📦 OTA UPDATE STARTED         ║");
+    Serial.println("╚══════════════════════════════════════╝");
+    Serial.printf("   URL: %s\n", url.c_str());
+    
+    mqtt.publish(TOPIC_STATUS, "{\"status\":\"ota_starting\"}");
+    mqtt.loop();
+    delay(500);
+    mqtt.disconnect();
+    delay(200);
+    
+    HTTPClient http;
+    http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.begin(url);
+    
+    int httpCode = http.GET();
+    Serial.printf("   HTTP code: %d\n", httpCode);
+    
+    if (httpCode == HTTP_CODE_OK) {
+        int contentLength = http.getSize();
+        Serial.printf("   Size: %d bytes\n", contentLength);
+        
+        if (contentLength > 0 && Update.begin(contentLength)) {
+            WiFiClient* stream = http.getStreamPtr();
+            size_t written = 0;
+            int lastProgress = 0;
+            
+            while (written < contentLength && stream->connected()) {
+                if (stream->available()) {
+                    uint8_t buffer[128];
+                    size_t len = stream->read(buffer, sizeof(buffer));
+                    if (len > 0) {
+                        Update.write(buffer, len);
+                        written += len;
+                        
+                        int progress = (written * 100) / contentLength;
+                        if (progress != lastProgress) {
+                            Serial.printf("   Progress: %d%%\n", progress);
+                            lastProgress = progress;
+                        }
+                    }
+                }
+                yield();
+            }
+            
+            if (written == contentLength && Update.end() && Update.isFinished()) {
+                Serial.println("   ✅ OTA SUCCESS! Restarting...");
+                delay(3000);
+                ESP.restart();
+            } else {
+                Serial.printf("   ❌ Flash error\n");
+            }
+        }
+    } else {
+        Serial.printf("   ❌ HTTP Error: %d\n", httpCode);
+    }
+    
+    http.end();
 }
