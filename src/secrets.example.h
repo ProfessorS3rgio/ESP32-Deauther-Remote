@@ -12,7 +12,3 @@
 #define MQTT_USER "YourMQTTUsername"
 #define MQTT_PASS "YourMQTTPassword"
 
-// ============================================
-// OTA CONFIGURATION
-// ============================================
-#define GITHUB_TOKEN "ghp_your_github_token_here"
