@@ -4,6 +4,7 @@
 #include <vector>
 
 
+// Add to TargetAP struct:
 struct TargetAP {
     uint8_t bssid[6];
     int channel;
@@ -13,7 +14,14 @@ struct TargetAP {
     unsigned long last_attack;
     unsigned long next_attack;
     int clients_detected;
+    int clients_before_attack;   // ✅ NEW
+    int clients_after_attack;    // ✅ NEW
+    int total_disconnected;      // ✅ NEW
 };
+
+// Add new functions:
+int count_clients_on_ap(uint8_t* bssid);
+void report_attack_results(TargetAP& target);
 
 struct VendoConfig {
     String unique_name;      // e.g., "Razor"

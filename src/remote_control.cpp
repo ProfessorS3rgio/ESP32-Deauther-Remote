@@ -125,13 +125,77 @@ void RemoteControl::performMQTTCheckIn() {
         if (mqtt.connect((DEVICE_ID + String(random(0xffff), HEX)).c_str(), MQTT_USER, MQTT_PASS)) {
             mqtt.subscribe(TOPIC_CMD);
             mqtt.subscribe(TOPIC_CMD_RETAINED);
-            MQTTHandler::publishStatus(mqtt, "checking_in", "attacking", true);
+            
+            // ✅ Send check-in with target details
+            DynamicJsonDocument doc(2048);
+            doc["device"] = DEVICE_ID;
+            doc["status"] = "checking_in";
+            doc["mode"] = "attacking";
+            doc["paused"] = true;
+            doc["uptime"] = millis() / 1000;
+            doc["rssi"] = WiFi.RSSI();
+            doc["ip"] = WiFi.localIP().toString();
+            doc["target_count"] = savedAttackTargets.size();
+            
+            JsonArray targets = doc.createNestedArray("targets");
+            for (const auto& t : savedAttackTargets) {
+                JsonObject obj = targets.createNestedObject();
+                obj["ssid"] = t.ssid;
+                char bssidStr[18];
+                sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+                        t.bssid[0], t.bssid[1], t.bssid[2],
+                        t.bssid[3], t.bssid[4], t.bssid[5]);
+                obj["bssid"] = bssidStr;
+                obj["channel"] = t.channel;
+            }
+            
+            String json;
+            serializeJson(doc, json);
+            mqtt.publish(TOPIC_STATUS, json.c_str());
+            mqtt.loop();
             
             unsigned long start = millis();
             while (millis() - start < MQTT_LISTEN_TIME) {
                 mqtt.loop();
                 if (!attackModeActive) break;
                 delay(10);
+            }
+            
+            // ✅ Send resuming status before disconnect
+            if (attackModeActive && savedAttackTargets.size() > 0) {
+                DynamicJsonDocument resDoc(1024);
+                resDoc["device"] = DEVICE_ID;
+                resDoc["status"] = "resuming_attack";
+                resDoc["mode"] = "multi_target";
+                resDoc["target_count"] = savedAttackTargets.size();
+                resDoc["uptime"] = millis() / 1000;
+                resDoc["rssi"] = WiFi.RSSI();
+                
+                JsonArray resTargets = resDoc.createNestedArray("targets");
+                for (const auto& t : savedAttackTargets) {
+                    JsonObject obj = resTargets.createNestedObject();
+                    obj["ssid"] = t.ssid;
+                    char bssidStr[18];
+                    sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+                            t.bssid[0], t.bssid[1], t.bssid[2],
+                            t.bssid[3], t.bssid[4], t.bssid[5]);
+                    obj["bssid"] = bssidStr;
+                    obj["channel"] = t.channel;
+                }
+                
+                String resJson;
+                serializeJson(resDoc, resJson);
+                mqtt.publish(TOPIC_STATUS, resJson.c_str());
+                
+                // Flush before disconnect
+                for (int i = 0; i < 10; i++) {
+                    mqtt.loop();
+                    delay(50);
+                }
+                
+                mqtt.disconnect();
+                WiFi.disconnect(true);
+                delay(100);
             }
         }
     }

@@ -35,7 +35,6 @@ bool NetworkManager::connectWiFi(const char* ssid, const char* pass, int timeout
         Serial.printf("\n❌ WiFi attempt %d failed!\n", retry);
     }
     
-    // All retries failed - restart device
     Serial.println("\n╔══════════════════════════════════════╗");
     Serial.println("║     ❌ WIFI CONNECTION FAILED       ║");
     Serial.println("║     ALL ATTEMPTS EXHAUSTED          ║");
@@ -51,7 +50,7 @@ bool NetworkManager::connectWiFi(const char* ssid, const char* pass, int timeout
     Serial.println("💀 Restarting now!\n");
     ESP.restart();
     
-    return false; // Never reached
+    return false;
 }
 
 bool NetworkManager::connectMQTT(PubSubClient& mqtt, WiFiClientSecure& wifiClient,
@@ -62,7 +61,7 @@ bool NetworkManager::connectMQTT(PubSubClient& mqtt, WiFiClientSecure& wifiClien
     wifiClient.setInsecure();
     mqtt.setServer(MQTT_BROKER, MQTT_PORT);
     mqtt.setCallback(callback);
-    mqtt.setBufferSize(2048);
+    mqtt.setBufferSize(4096);
     
     reconnectMQTT(mqtt, wifiClient, callback);
     return mqtt.connected();
@@ -78,22 +77,33 @@ void NetworkManager::reconnectMQTT(PubSubClient& mqtt, WiFiClientSecure& wifiCli
     wifiClient.setInsecure();
     mqtt.setServer(MQTT_BROKER, MQTT_PORT);
     mqtt.setCallback(callback);
-    mqtt.setBufferSize(2048);
+    mqtt.setBufferSize(4096);
     
     while (!mqtt.connected()) {
         Serial.print("🔄 Connecting to HiveMQ...");
-        String clientId = DEVICE_ID + String(random(0xffff), HEX);
+        String clientId = String(DEVICE_ID) + "_" + String(random(0xffff), HEX);
         
         if (mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASS)) {
             Serial.println(" ✅");
+            
+            // Subscribe to device-specific topics
             mqtt.subscribe(TOPIC_CMD);
             mqtt.subscribe(TOPIC_CMD_RETAINED);
             
+            // ✅ Subscribe to broadcast topic (all devices)
+            mqtt.subscribe(TOPIC_BROADCAST);
+            
+            // Clear stale retained messages
             mqtt.publish(TOPIC_CMD_RETAINED, "", true);
             mqtt.loop();
             delay(100);
             
-            mqtt.publish(TOPIC_STATUS, "{\"status\":\"online\"}");
+            // Publish online status with device ID
+            String onlineMsg = "{\"status\":\"online\",\"device\":\"" + String(DEVICE_ID) + "\"}";
+            mqtt.publish(TOPIC_STATUS, onlineMsg.c_str());
+            
+            Serial.printf("   Device ID: %s\n", DEVICE_ID);
+            Serial.printf("   Subscribed: %s, %s, %s\n", TOPIC_CMD, TOPIC_CMD_RETAINED, TOPIC_BROADCAST);
         } else {
             Serial.printf(" ❌ (rc=%d). Retry in 5s...\n", mqtt.state());
             delay(5000);
