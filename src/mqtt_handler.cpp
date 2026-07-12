@@ -140,7 +140,7 @@ void MQTTHandler::handleMultiAttack(PubSubClient& mqtt, const String& msg,
     JsonArray targets = doc.createNestedArray("targets");
     for (const auto& t : attackTargets) {
         JsonObject obj = targets.createNestedObject();
-        obj["ssid"] = t.ssid;
+        obj["ssid"] = MQTTHandler::sanitizeSsid(t.ssid);
         char bssidStr[18];
         sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
                 t.bssid[0], t.bssid[1], t.bssid[2],
@@ -247,7 +247,7 @@ void MQTTHandler::publishStatus(PubSubClient& mqtt, const char* status,
         JsonArray targets = doc.createNestedArray("targets");
         for (const auto& t : multi_targets) {
             JsonObject obj = targets.createNestedObject();
-            obj["ssid"] = t.ssid;
+            obj["ssid"] = MQTTHandler::sanitizeSsid(t.ssid);
             
             char bssidStr[18];
             sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
@@ -275,7 +275,7 @@ void MQTTHandler::publishScanResults(PubSubClient& mqtt,
     JsonArray arr = doc.createNestedArray("networks");
     for (const auto& net : networks) {
         JsonObject obj = arr.createNestedObject();
-        obj["ssid"] = net.ssid;
+        obj["ssid"] = MQTTHandler::sanitizeSsid(net.ssid);
         obj["bssid"] = net.bssid;
         obj["channel"] = net.channel;
         obj["rssi"] = net.rssi;
@@ -351,4 +351,17 @@ void MQTTHandler::handleOTAUpdate(PubSubClient& mqtt, const String& url) {
     }
     
     http.end();
+
+}
+
+
+String MQTTHandler::sanitizeSsid(const String& ssid) {
+    String clean = ssid;
+    for (int i = 0; i < clean.length(); i++) {
+        char c = clean[i];
+        if (c < 32 || c > 126) {
+            clean[i] = '?';
+        }
+    }
+    return clean;
 }

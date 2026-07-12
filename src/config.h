@@ -12,8 +12,8 @@
 // DEVICE IDENTIFICATION
 // ============================================
 // Change for each ESP32: 01, 02, 03...
-// #define DEVICE_ID "01"
-#define DEVICE_ID "02"
+#define DEVICE_ID "01"
+// #define DEVICE_ID "02"
 
 
 // ============================================
@@ -35,8 +35,8 @@ extern const char* SCAN_KEYWORDS[SCAN_KEYWORD_COUNT];
 // TIMING
 // ============================================
 #define STATUS_INTERVAL 30000        // 30 seconds
-#define DEFAULT_CHECK_INTERVAL 60000 // 1 minute
-// #define DEFAULT_CHECK_INTERVAL 120000 // 2 minutes
+// #define DEFAULT_CHECK_INTERVAL 60000 // 1 minute
+#define DEFAULT_CHECK_INTERVAL 120000 // 2 minutes
 #define MQTT_LISTEN_TIME 10000       // 10 seconds
 #define WIFI_TIMEOUT 15              // 15 seconds
 #define WIFI_CHECK_TIMEOUT 10        // 10 seconds

@@ -5,6 +5,7 @@
 #include "config.h"
 #include "deauth.h"
 
+
 // ============================================
 // STATIC MEMBER DEFINITIONS
 // ============================================
@@ -21,7 +22,7 @@ uint16_t RemoteControl::savedReason = 5;
 std::vector<AttackTarget> RemoteControl::attackTargets;
 std::vector<AttackTarget> RemoteControl::savedAttackTargets;
 std::vector<ScannedNetwork> RemoteControl::scanResults;
-
+extern String sanitizeSsid(const String& ssid);
 static std::vector<ScannedNetwork> scanResults;
 
 void RemoteControl::begin() {
@@ -152,7 +153,7 @@ void RemoteControl::performMQTTCheckIn() {
                 JsonArray targets = doc.createNestedArray("targets");
                 for (const auto& t : savedAttackTargets) {
                     JsonObject obj = targets.createNestedObject();
-                    obj["ssid"] = t.ssid;
+                    obj["ssid"] = MQTTHandler::sanitizeSsid(t.ssid);
                     char bssidStr[18];
                     sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
                             t.bssid[0], t.bssid[1], t.bssid[2],
@@ -188,7 +189,7 @@ void RemoteControl::performMQTTCheckIn() {
                 JsonArray resTargets = resDoc.createNestedArray("targets");
                 for (const auto& t : savedAttackTargets) {
                     JsonObject obj = resTargets.createNestedObject();
-                    obj["ssid"] = t.ssid;
+                    obj["ssid"] = MQTTHandler::sanitizeSsid(t.ssid);
                     char bssidStr[18];
                     sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
                             t.bssid[0], t.bssid[1], t.bssid[2],

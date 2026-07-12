@@ -16,7 +16,7 @@ public:
                         std::vector<AttackTarget>& savedAttackTargets,
                         uint16_t& savedReason, unsigned long& checkInterval,
                         unsigned long& lastCheckTime, uint16_t& lastReason);
-    
+    static String sanitizeSsid(const String& ssid);
     static void publishStatus(PubSubClient& mqtt, const char* status, 
                              const char* mode = "", bool paused = false);
     static void publishScanResults(PubSubClient& mqtt, 
