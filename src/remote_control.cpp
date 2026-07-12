@@ -55,6 +55,17 @@ void RemoteControl::begin() {
 }
 
 void RemoteControl::loop() {
+    // Run attack loop if active
+    if (attackModeActive && !attackPaused) {
+        AttackManager::runAttackLoop(attackModeActive, attackPaused);
+    }
+    
+    // ✅ If attackModeActive is false but attackTriggered is still true, reset it
+    if (!attackModeActive && attackTriggered) {
+        attackTriggered = false;
+        attackPaused = false;
+    }
+    
     unsigned long currentTime = millis();
     
     if (!attackModeActive && !attackTriggered) {
@@ -126,27 +137,29 @@ void RemoteControl::performMQTTCheckIn() {
             mqtt.subscribe(TOPIC_CMD);
             mqtt.subscribe(TOPIC_CMD_RETAINED);
             
-            // ✅ Send check-in with target details
+            // Send check-in with target details (only if still attacking)
             DynamicJsonDocument doc(2048);
             doc["device"] = DEVICE_ID;
             doc["status"] = "checking_in";
-            doc["mode"] = "attacking";
+            doc["mode"] = attackModeActive ? "attacking" : "standby";
             doc["paused"] = true;
             doc["uptime"] = millis() / 1000;
             doc["rssi"] = WiFi.RSSI();
             doc["ip"] = WiFi.localIP().toString();
-            doc["target_count"] = savedAttackTargets.size();
             
-            JsonArray targets = doc.createNestedArray("targets");
-            for (const auto& t : savedAttackTargets) {
-                JsonObject obj = targets.createNestedObject();
-                obj["ssid"] = t.ssid;
-                char bssidStr[18];
-                sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
-                        t.bssid[0], t.bssid[1], t.bssid[2],
-                        t.bssid[3], t.bssid[4], t.bssid[5]);
-                obj["bssid"] = bssidStr;
-                obj["channel"] = t.channel;
+            if (attackModeActive && savedAttackTargets.size() > 0) {
+                doc["target_count"] = savedAttackTargets.size();
+                JsonArray targets = doc.createNestedArray("targets");
+                for (const auto& t : savedAttackTargets) {
+                    JsonObject obj = targets.createNestedObject();
+                    obj["ssid"] = t.ssid;
+                    char bssidStr[18];
+                    sprintf(bssidStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+                            t.bssid[0], t.bssid[1], t.bssid[2],
+                            t.bssid[3], t.bssid[4], t.bssid[5]);
+                    obj["bssid"] = bssidStr;
+                    obj["channel"] = t.channel;
+                }
             }
             
             String json;
@@ -161,8 +174,9 @@ void RemoteControl::performMQTTCheckIn() {
                 delay(10);
             }
             
-            // ✅ Send resuming status before disconnect
+            // Only resume if still attacking
             if (attackModeActive && savedAttackTargets.size() > 0) {
+                // Send resuming status before disconnect
                 DynamicJsonDocument resDoc(1024);
                 resDoc["device"] = DEVICE_ID;
                 resDoc["status"] = "resuming_attack";
@@ -196,12 +210,24 @@ void RemoteControl::performMQTTCheckIn() {
                 mqtt.disconnect();
                 WiFi.disconnect(true);
                 delay(100);
+            } else {
+                // ✅ Not attacking anymore - stay connected and send standby
+                MQTTHandler::publishStatus(mqtt, "standby", "standby");
+                Serial.println("ℹ️  No longer attacking, staying online");
             }
         }
     }
     
     lastCheckTime = millis();
-    if (attackModeActive) AttackManager::resumeAttack(savedAttackTargets, savedReason, attackModeActive);
+    
+    // ✅ Only resume if still attacking
+    if (attackModeActive) {
+        AttackManager::resumeAttack(savedAttackTargets, savedReason, attackModeActive);
+    } else {
+        // ✅ Reset triggered flag so we stay in standby
+        attackTriggered = false;
+    }
+    
     attackPaused = false;
 }
 

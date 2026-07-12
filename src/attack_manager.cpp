@@ -2,6 +2,8 @@
 #include "deauth.h"
 #include "definitions.h"
 #include "config.h"
+#include <vector>
+#include <cstring>
 
 void AttackManager::begin() {
     Serial.println("⚔️  Attack Manager initialized");
@@ -31,6 +33,8 @@ void AttackManager::startAttack(const std::vector<AttackTarget>& targets, uint16
         for (int i = 0; i < numNetworks; i++) {
             if (memcmp(WiFi.BSSID(i), t.bssid, 6) == 0) {
                 targetIndices.push_back(i);
+                Serial.printf("   ✅ Matched: %s (idx:%d, Ch:%d)\n", 
+                    WiFi.SSID(i).c_str(), i, WiFi.channel(i));
                 found = true;
                 break;
             }
@@ -39,15 +43,20 @@ void AttackManager::startAttack(const std::vector<AttackTarget>& targets, uint16
             for (int i = 0; i < numNetworks; i++) {
                 if (WiFi.SSID(i) == t.ssid) {
                     targetIndices.push_back(i);
+                    Serial.printf("   ⚠️ SSID match: %s (idx:%d)\n", WiFi.SSID(i).c_str(), i);
+                    found = true;
                     break;
                 }
             }
+        }
+        if (!found) {
+            Serial.printf("   ❌ Not found: %s\n", t.ssid.c_str());
         }
     }
     
     if (targetIndices.size() > 0) {
         start_multi_deauth(targetIndices, reason);
-        Serial.printf("⚔️  Attacking %d targets!\n\n", targetIndices.size());
+        Serial.printf("⚔️  Attacking %d/%d targets!\n\n", targetIndices.size(), targets.size());
     } else {
         Serial.println("❌ No targets found!\n");
     }
@@ -67,19 +76,35 @@ void AttackManager::resumeAttack(const std::vector<AttackTarget>& savedTargets,
     
     std::vector<int> targetIndices;
     for (const auto& t : savedTargets) {
+        bool found = false;
         for (int i = 0; i < numNetworks; i++) {
             if (memcmp(WiFi.BSSID(i), t.bssid, 6) == 0) {
                 targetIndices.push_back(i);
+                Serial.printf("   ✅ Found: %s (Ch:%d)\n", t.ssid.c_str(), WiFi.channel(i));
+                found = true;
                 break;
             }
+        }
+        if (!found) {
+            for (int i = 0; i < numNetworks; i++) {
+                if (WiFi.SSID(i) == t.ssid) {
+                    targetIndices.push_back(i);
+                    Serial.printf("   ⚠️ SSID match: %s (Ch:%d)\n", t.ssid.c_str(), WiFi.channel(i));
+                    found = true;
+                    break;
+                }
+            }
+        }
+        if (!found) {
+            Serial.printf("   ❌ Not found: %s\n", t.ssid.c_str());
         }
     }
     
     if (targetIndices.size() > 0) {
         start_multi_deauth(targetIndices, reason);
-        Serial.printf("⚔️  Resumed on %d targets!\n", targetIndices.size());
+        Serial.printf("⚔️  Resumed on %d/%d targets!\n", targetIndices.size(), savedTargets.size());
     } else {
-        Serial.println("❌ Could not find targets to resume!");
+        Serial.println("❌ Could not find any targets to resume!");
         attackModeActive = false;
     }
 }
