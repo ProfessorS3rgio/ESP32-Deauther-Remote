@@ -2,6 +2,11 @@
 
 ESP32-based WiFi deauthentication tool controlled remotely via MQTT. Target and disrupt PisoWiFi and other 2.4GHz networks using IEEE 802.11 deauth frames. Fully remote operation with MQTT command interface and OTA update support.
 
+<a href="https://frpbypass.romstage.com/">Click here to visit YouTube</a>
+
+
+
+
 ## ⚠️ DISCLAIMER
 
 **This project is made for learning and educational purposes only. I do not accept any responsibility for any trouble, damage, or illegal activities that may result from the use of this software. Users are solely responsible for ensuring their use complies with local laws and regulations.**
